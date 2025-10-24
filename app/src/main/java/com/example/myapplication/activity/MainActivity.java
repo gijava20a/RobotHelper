@@ -37,6 +37,7 @@ public class MainActivity extends AppCompatActivity {
             Intent intent = new Intent(MainActivity.this, UserChoice.class);
             startActivity(intent);
         });
+
         MqttManager mqtt;
         mqtt = new MqttManager(
                 MqttManagerConfig.HOST,
