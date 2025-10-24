@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Robot helper</string>
+    <string name="user_type1">Controller</string>
+    <string name="user_type2">User</string>
+    <string name="agora_app_id">b9e280c8cfce4a12b643f79d679e866a</string>
+    <string name="agora_access_token"></string>
+</resources>
