@@ -44,10 +44,17 @@ public class UserActivity extends AppCompatActivity {
     private String aiTopic;
     private int robotID;
 
+
+    private static final int PERMISSION_REQUEST_CODE = 100;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.user);
+
+        if (!checkPermissions()) {
+            requestPermissions();
+        }
 
         Log.d(TAG, "UserActivity onCreate");
 
@@ -81,6 +88,36 @@ public class UserActivity extends AppCompatActivity {
         });
 
         checkCameraPermission();
+    }
+
+    private boolean checkPermissions() {
+        String[] permissions = {
+                Manifest.permission.CAMERA,
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.MODIFY_AUDIO_SETTINGS
+        };
+
+        for (String permission : permissions) {
+            if (ContextCompat.checkSelfPermission(this, permission)
+                    != PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "Missing permission: " + permission);
+                return false;
+            }
+        }
+        Log.d(TAG, "All permissions granted");
+        return true;
+    }
+
+    private void requestPermissions() {
+        Log.d(TAG, "Requesting permissions...");
+        ActivityCompat.requestPermissions(this,
+                new String[]{
+                        Manifest.permission.CAMERA,
+                        Manifest.permission.RECORD_AUDIO,
+                        Manifest.permission.MODIFY_AUDIO_SETTINGS
+                },
+                PERMISSION_REQUEST_CODE
+        );
     }
 
     private void checkCameraPermission() {

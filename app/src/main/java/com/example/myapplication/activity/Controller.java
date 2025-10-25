@@ -1,6 +1,8 @@
 package com.example.myapplication.activity;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -12,6 +14,8 @@ import android.widget.FrameLayout;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.example.myapplication.R;
 import com.example.myapplication.agora.AgoraHelper;
@@ -35,10 +39,16 @@ public class Controller extends AppCompatActivity {
 
     private int robotId;
 
+    private static final int PERMISSION_REQUEST_CODE = 100;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.controller);
+
+        if (!checkPermissions()) {
+            requestPermissions();
+        }
 
         backgroundExecutor = Executors.newSingleThreadExecutor();
         cameraView = findViewById(R.id.camera_preview_container);
@@ -78,6 +88,36 @@ public class Controller extends AppCompatActivity {
         });
 
         setupButtons(robotId);
+    }
+
+    private boolean checkPermissions() {
+        String[] permissions = {
+                Manifest.permission.CAMERA,
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.MODIFY_AUDIO_SETTINGS
+        };
+
+        for (String permission : permissions) {
+            if (ContextCompat.checkSelfPermission(this, permission)
+                    != PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "Missing permission: " + permission);
+                return false;
+            }
+        }
+        Log.d(TAG, "All permissions granted");
+        return true;
+    }
+
+    private void requestPermissions() {
+        Log.d(TAG, "Requesting permissions...");
+        ActivityCompat.requestPermissions(this,
+                new String[]{
+                        Manifest.permission.CAMERA,
+                        Manifest.permission.RECORD_AUDIO,
+                        Manifest.permission.MODIFY_AUDIO_SETTINGS
+                },
+                PERMISSION_REQUEST_CODE
+        );
     }
 
     private void setupButtons(int robotID) {
