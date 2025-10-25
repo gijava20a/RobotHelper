@@ -141,16 +141,16 @@ public class UserActivity extends AppCompatActivity {
                         String msg = new String(publish.getPayloadAsBytes()).trim();
                         boolean newState = msg.equalsIgnoreCase("ON");
 
-                        Log.i(TAG, "📨 AI Mode command: '" + msg + "' → " + newState);
+                        Log.i(TAG, "AI Mode command: '" + msg + "' → " + newState);
 
                         runOnUiThread(() -> {
                             if (newState && !aiEnabled) {
                                 Log.i(TAG, "ACTIVATING AI MODE");
-                                Toast.makeText(this, "🤖 AI Mode Activated", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(this, "AI Mode Activated", Toast.LENGTH_SHORT).show();
                                 startAIDetection();
                             } else if (!newState && aiEnabled) {
                                 Log.i(TAG, "DEACTIVATING AI MODE");
-                                Toast.makeText(this, "👤 Manual Control", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(this, "Manual Control", Toast.LENGTH_SHORT).show();
                                 stopAIDetection();
                             }
                         });
@@ -180,7 +180,7 @@ public class UserActivity extends AppCompatActivity {
             return;
         }
 
-        Log.i(TAG, "🤖 Starting AI person tracking...");
+        Log.i(TAG, "Starting AI person tracking...");
         aiHelper.startDetection();
         aiEnabled = true;
     }
@@ -216,7 +216,7 @@ public class UserActivity extends AppCompatActivity {
     private final IRtcEngineEventHandler rtcHandler = new IRtcEngineEventHandler() {
         @Override
         public void onUserJoined(int uid, int elapsed) {
-            Log.d(TAG, "👤 Remote user joined: " + uid);
+            Log.d(TAG, "Remote user joined: " + uid);
             runOnUiThread(() -> {
                 if (agora != null && videoContainer != null) {
                     agora.showRemoteVideo(videoContainer, uid);
@@ -227,7 +227,7 @@ public class UserActivity extends AppCompatActivity {
 
         @Override
         public void onUserOffline(int uid, int reason) {
-            Log.d(TAG, "👤 Remote user offline: " + uid);
+            Log.d(TAG, "Remote user offline: " + uid);
             runOnUiThread(() -> {
                 if (videoContainer != null) {
                     videoContainer.removeAllViews();

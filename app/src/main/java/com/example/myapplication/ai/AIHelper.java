@@ -58,7 +58,7 @@ public class AIHelper {
                 .build();
 
         detector = ObjectDetection.getClient(options);
-        Log.d(TAG, "🤖 AIHelper initialized - Will use FRONT camera for person tracking");
+        Log.d(TAG, "AIHelper initialized - Will use FRONT camera for person tracking");
     }
 
     public void startDetection() {
@@ -67,7 +67,7 @@ public class AIHelper {
             return;
         }
 
-        Log.i(TAG, "🚀 Starting AI PERSON TRACKING with FRONT camera...");
+        Log.i(TAG, "Starting AI PERSON TRACKING with FRONT camera...");
         isDetecting = true;
         noPersonFrameCount = 0;
 
@@ -79,7 +79,7 @@ public class AIHelper {
                 cameraProvider = cameraProviderFuture.get();
                 bindCameraForAI();
             } catch (ExecutionException | InterruptedException e) {
-                Log.e(TAG, "❌ Failed to get camera provider: " + e.getMessage());
+                Log.e(TAG, "Failed to get camera provider: " + e.getMessage());
                 isDetecting = false;
             }
         }, ContextCompat.getMainExecutor((Context) lifecycleOwner));
@@ -87,7 +87,7 @@ public class AIHelper {
 
     private void bindCameraForAI() {
         if (cameraProvider == null) {
-            Log.e(TAG, "❌ Camera provider is null");
+            Log.e(TAG, "Camera provider is null");
             return;
         }
 
@@ -141,7 +141,7 @@ public class AIHelper {
                         image.close();
                     })
                     .addOnFailureListener(e -> {
-                        Log.e(TAG, "❌ Detection failed: " + e.getMessage());
+                        Log.e(TAG, "Detection failed: " + e.getMessage());
                         image.close();
                     });
 
