@@ -176,6 +176,7 @@ public class AIHelper {
             if (noPersonFrameCount >= NO_PERSON_THRESHOLD && !lastCommand.equals("STOP")) {
                 Log.w(TAG, "No person detected - STOPPING");
                 sendCommand("STOP");
+                lastCommand = "STOP";
             }
             return;
         }
@@ -264,6 +265,7 @@ public class AIHelper {
 
             if (!lastCommand.equals("STOP")) {
                 sendCommand("STOP");
+                lastCommand = "STOP";
             }
 
             if (cameraProvider != null) {
