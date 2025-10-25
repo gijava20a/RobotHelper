@@ -61,6 +61,7 @@ public class Controller extends AppCompatActivity {
                 agora = new AgoraHelper(this, getString(R.string.agora_app_id), rtcHandler);
                 String channel = "robot_" + robotId + "_channel";
                 agora.joinChannel(getString(R.string.agora_access_token), channel);
+                Log.d(TAG, "Agora joined: " + channel);
 
             } catch (Exception e) {
                 Log.e(TAG, "Error initializing MQTT/Agora: " + e.getMessage());
@@ -85,6 +86,7 @@ public class Controller extends AppCompatActivity {
             aiMode = !aiMode;
             aiButton.setBackgroundTintList(ColorStateList.valueOf(
                     aiMode ? Color.RED : Color.parseColor("#4CAF50")));
+            aiButton.setText(aiMode ? "AI: ON" : "AI: OFF");
 
             if (mqtt != null) {
                 backgroundExecutor.execute(() ->
@@ -95,23 +97,58 @@ public class Controller extends AppCompatActivity {
             }
         });
 
-        setupPressEffect(R.id.btn_up, "FORWARD");
-        setupPressEffect(R.id.btn_down, "BACK");
-        setupPressEffect(R.id.btn_left, "LEFT");
-        setupPressEffect(R.id.btn_right, "RIGHT");
-        setupPressEffect(R.id.btn_stop, "STOP");
+        setupKeyBehavior(R.id.btn_up, "FORWARD");
+        setupKeyBehavior(R.id.btn_down, "BACK");
+        setupKeyBehavior(R.id.btn_left, "LEFT");
+        setupKeyBehavior(R.id.btn_right, "RIGHT");
+
+        setupStopButton(R.id.btn_stop);
     }
 
-    private void setupPressEffect(int buttonId, String command) {
+
+    private void setupKeyBehavior(int buttonId, String command) {
         View btn = findViewById(buttonId);
+
         btn.setOnTouchListener((v, event) -> {
-            if (aiMode) return true;
+            if (aiMode) {
+                return true;
+            }
 
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
                     v.setAlpha(0.6f);
                     sendCmd(command);
+                    Log.d(TAG, "Button pressed: " + command);
                     break;
+
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    v.setAlpha(1f);
+                    sendCmd("STOP");
+                    Log.d(TAG, "Button released: STOP");
+                    v.performClick();
+                    break;
+            }
+            return true;
+        });
+    }
+
+
+    private void setupStopButton(int buttonId) {
+        View btn = findViewById(buttonId);
+
+        btn.setOnTouchListener((v, event) -> {
+            if (aiMode) {
+                return true;
+            }
+
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    v.setAlpha(0.6f);
+                    sendCmd("STOP");
+                    Log.d(TAG, "STOP pressed");
+                    break;
+
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     v.setAlpha(1f);
@@ -125,19 +162,31 @@ public class Controller extends AppCompatActivity {
     private final IRtcEngineEventHandler rtcHandler = new IRtcEngineEventHandler() {
         @Override
         public void onUserJoined(int uid, int elapsed) {
-            runOnUiThread(() -> agora.showRemoteVideo(cameraView, uid));
+            Log.d(TAG, "Remote user joined: " + uid);
+            runOnUiThread(() -> {
+                if (agora != null && cameraView != null) {
+                    agora.showRemoteVideo(cameraView, uid);
+                }
+            });
         }
 
         @Override
         public void onUserOffline(int uid, int reason) {
-            runOnUiThread(() -> cameraView.removeAllViews());
+            Log.d(TAG, "Remote user offline: " + uid);
+            runOnUiThread(() -> {
+                if (cameraView != null) {
+                    cameraView.removeAllViews();
+                }
+            });
         }
     };
 
     private void sendCmd(String cmd) {
         if (mqtt != null) {
-            backgroundExecutor.execute(() -> mqtt.publish("robot/" + robotId + "/control", cmd));
-            Log.d(TAG, "Sent command: " + cmd);
+            backgroundExecutor.execute(() -> {
+                mqtt.publish("robot/" + robotId + "/control", cmd);
+            });
+            Log.d(TAG, "Sent: " + cmd);
         } else {
             Log.w(TAG, "MQTT not connected — command skipped: " + cmd);
         }
@@ -152,16 +201,34 @@ public class Controller extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
+        if (mqtt != null) {
+            backgroundExecutor.execute(() -> {
+                mqtt.publish("robot/" + robotId + "/control", "STOP");
+                Log.d(TAG, "Final STOP sent before disconnect");
+            });
+        }
+
         backgroundExecutor.execute(() -> {
-            if (agora != null) {
-                agora.leave();
-                agora.destroy();
-            }
-            if (mqtt != null) {
-                mqtt.disconnect();
-                Log.d(TAG, "Robot " + robotId + " disconnected cleanly");
+            try {
+                if (agora != null) {
+                    agora.leave();
+                    Thread.sleep(200);
+                    agora.destroy();
+                    Log.d(TAG, "Agora destroyed");
+                }
+
+                if (mqtt != null) {
+                    String statusTopic = "robot/" + robotId + "/status";
+                    mqtt.publish(statusTopic, "admin_disconnected");
+                    mqtt.disconnect();
+                    Log.d(TAG, "Robot " + robotId + " disconnected cleanly");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error during cleanup: " + e.getMessage());
             }
         });
+
         backgroundExecutor.shutdown();
     }
 }

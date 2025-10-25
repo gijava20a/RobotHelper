@@ -33,7 +33,6 @@
         <activity android:name=".activity.UserActivity" />
         <activity android:name=".activity.ControllerChoice" />
         <activity android:name=".activity.UserChoice" />
-        <activity android:name=".agora.VideoAgora" />
     </application>
 
 </manifest>

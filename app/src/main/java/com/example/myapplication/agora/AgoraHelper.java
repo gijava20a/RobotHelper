@@ -21,6 +21,7 @@ public class AgoraHelper {
             cfg.mEventHandler = handler;
             engine = RtcEngine.create(cfg);
             engine.enableVideo();
+            engine.enableAudio();
             engine.setVideoEncoderConfiguration(
                     new VideoEncoderConfiguration(
                             VideoEncoderConfiguration.VD_640x360,

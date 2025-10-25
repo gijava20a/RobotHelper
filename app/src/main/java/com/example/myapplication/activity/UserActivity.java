@@ -1,17 +1,18 @@
 package com.example.myapplication.activity;
 
+import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.camera.view.PreviewView;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.example.myapplication.R;
 import com.example.myapplication.agora.AgoraHelper;
@@ -30,7 +31,6 @@ public class UserActivity extends AppCompatActivity {
     private static final int CAMERA_PERMISSION_CODE = 100;
 
     private FrameLayout videoContainer;
-    private PreviewView previewView;
 
     private AgoraHelper agora;
     private MqttManager mqtt;
@@ -38,7 +38,7 @@ public class UserActivity extends AppCompatActivity {
     private ExecutorService backgroundExecutor;
 
     private boolean aiEnabled = false;
-    private boolean mqttReady = false;
+    private boolean cameraPermissionGranted = false;
 
     private String controlTopic;
     private String aiTopic;
@@ -52,32 +52,52 @@ public class UserActivity extends AppCompatActivity {
         Log.d(TAG, "UserActivity onCreate");
 
         videoContainer = findViewById(R.id.videoContainer);
-        previewView = findViewById(R.id.cameraPreview);
+
+        if (videoContainer == null) {
+            Log.e(TAG, "CRITICAL: videoContainer is NULL!");
+            Toast.makeText(this, "Error: Video container not found", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        Log.d(TAG, "VideoContainer initialized");
+
         backgroundExecutor = Executors.newSingleThreadExecutor();
 
         robotID = getIntent().getIntExtra("id", 0);
         controlTopic = "robot/" + robotID + "/control";
         aiTopic = "robot/" + robotID + "/ai_mode";
 
-        Log.d(TAG, "Robot: " + robotID + " | Control: " + controlTopic + " | AI: " + aiTopic);
+        Log.d(TAG, "Robot ID: " + robotID);
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
                 Intent result = new Intent();
-                int robotId = getIntent().getIntExtra("id", 0);
-                result.putExtra("robotId", robotId);
+                result.putExtra("robotId", robotID);
                 setResult(RESULT_OK, result);
-
                 setEnabled(false);
                 finish();
             }
         });
 
-
-        backgroundExecutor.execute(this::initializeConnections);
+        checkCameraPermission();
     }
 
+    private void checkCameraPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED) {
+
+            cameraPermissionGranted = true;
+            Log.d(TAG, "Camera permission granted");
+
+            backgroundExecutor.execute(this::initializeConnections);
+        } else {
+            Log.d(TAG, "Requesting camera permission...");
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.CAMERA},
+                    CAMERA_PERMISSION_CODE);
+        }
+    }
 
     private void initializeConnections() {
         try {
@@ -87,49 +107,31 @@ public class UserActivity extends AppCompatActivity {
                     MqttManagerConfig.USERNAME,
                     MqttManagerConfig.PASSWORD
             );
-            mqttReady = true;
-            Log.d(TAG, "MQTT connected successfully");
+            Log.d(TAG, "MQTT connected");
 
             String statusTopic = "robot/" + robotID + "/status";
             mqtt.publish(statusTopic, "online");
             Log.d(TAG, "Robot " + robotID + " marked ONLINE");
 
-            aiHelper = new AIHelper(this, previewView, mqtt, controlTopic);
+            runOnUiThread(() -> {
+                aiHelper = new AIHelper(this, mqtt, controlTopic);
+                Log.d(TAG, "AIHelper initialized");
+            });
 
             agora = new AgoraHelper(this, getString(R.string.agora_app_id), rtcHandler);
             String channel = "robot_" + robotID + "_channel";
             agora.joinChannel(getString(R.string.agora_access_token), channel);
+            Log.d(TAG, "Agora joined: " + channel);
 
             listenForAIMode(aiTopic);
 
         } catch (Exception e) {
-            Log.e(TAG, "Error initializing connections: " + e.getMessage(), e);
+            Log.e(TAG, "Init error: " + e.getMessage(), e);
+            runOnUiThread(() ->
+                    Toast.makeText(this, "Connection error: " + e.getMessage(), Toast.LENGTH_LONG).show()
+            );
         }
     }
-
-
-    private void waitForPreviewViewThenStart() {
-        previewView.getViewTreeObserver().addOnGlobalLayoutListener(
-                new ViewTreeObserver.OnGlobalLayoutListener() {
-                    @Override
-                    public void onGlobalLayout() {
-                        previewView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-
-                        int width = previewView.getWidth();
-                        int height = previewView.getHeight();
-
-                        if (width > 0 && height > 0) {
-                            Log.d(TAG, "PreviewView ready: " + width + "x" + height);
-                            aiHelper.startDetection();
-                            aiEnabled = true;
-                        } else {
-                            Log.e(TAG, "PreviewView has invalid dimensions!");
-                        }
-                    }
-                }
-        );
-    }
-
 
     private void listenForAIMode(String topic) {
         try {
@@ -138,38 +140,57 @@ public class UserActivity extends AppCompatActivity {
                     .callback(publish -> {
                         String msg = new String(publish.getPayloadAsBytes()).trim();
                         boolean newState = msg.equalsIgnoreCase("ON");
-                        aiEnabled = newState;
-                        Log.d(TAG, "AI Mode update: " + msg + " → " + newState);
+
+                        Log.i(TAG, "📨 AI Mode command: '" + msg + "' → " + newState);
 
                         runOnUiThread(() -> {
-                            if (aiEnabled) {
-                                Log.d(TAG, "Starting AI detection (topic triggered)");
-                                waitForPreviewViewThenStart();
-                            } else if (aiHelper != null) {
-                                aiHelper.stopDetection();
-                                Log.d(TAG, "AI detection stopped (topic triggered)");
+                            if (newState && !aiEnabled) {
+                                Log.i(TAG, "ACTIVATING AI MODE");
+                                Toast.makeText(this, "🤖 AI Mode Activated", Toast.LENGTH_SHORT).show();
+                                startAIDetection();
+                            } else if (!newState && aiEnabled) {
+                                Log.i(TAG, "DEACTIVATING AI MODE");
+                                Toast.makeText(this, "👤 Manual Control", Toast.LENGTH_SHORT).show();
+                                stopAIDetection();
                             }
                         });
                     })
                     .send()
                     .whenComplete((ack, throwable) -> {
                         if (throwable != null) {
-                            Log.e(TAG, "Failed to subscribe to " + topic + ": " + throwable.getMessage());
-                            aiEnabled = false;
+                            Log.e(TAG, "Failed to subscribe: " + throwable.getMessage());
                         } else {
                             Log.d(TAG, "Subscribed to AI topic: " + topic);
                         }
                     });
         } catch (Exception e) {
-            Log.e(TAG, "Exception subscribing to AI topic: " + e.getMessage());
-            aiEnabled = false;
+            Log.e(TAG, "Subscribe error: " + e.getMessage());
         }
     }
 
-    private void retrieveInfo() {
-        Intent resultIntent = new Intent();
-        resultIntent.putExtra("robotId", robotID);
-        setResult(RESULT_OK, resultIntent);
+    private void startAIDetection() {
+        if (!cameraPermissionGranted) {
+            Log.e(TAG, "No camera permission");
+            Toast.makeText(this, "Camera permission required", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (aiHelper == null) {
+            Log.e(TAG, "AIHelper is null");
+            return;
+        }
+
+        Log.i(TAG, "🤖 Starting AI person tracking...");
+        aiHelper.startDetection();
+        aiEnabled = true;
+    }
+
+    private void stopAIDetection() {
+        if (aiHelper != null && aiEnabled) {
+            aiHelper.stopDetection();
+            aiEnabled = false;
+            Log.d(TAG, "AI stopped");
+        }
     }
 
     @Override
@@ -179,11 +200,15 @@ public class UserActivity extends AppCompatActivity {
 
         if (requestCode == CAMERA_PERMISSION_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                cameraPermissionGranted = true;
                 Log.d(TAG, "Camera permission granted");
-                if (aiEnabled) waitForPreviewViewThenStart();
+
+                backgroundExecutor.execute(this::initializeConnections);
             } else {
-                Toast.makeText(this, "Camera permission required for AI mode", Toast.LENGTH_LONG).show();
+                cameraPermissionGranted = false;
+                Toast.makeText(this, "Camera permission required", Toast.LENGTH_LONG).show();
                 Log.e(TAG, "Camera permission denied");
+                finish();
             }
         }
     }
@@ -191,42 +216,55 @@ public class UserActivity extends AppCompatActivity {
     private final IRtcEngineEventHandler rtcHandler = new IRtcEngineEventHandler() {
         @Override
         public void onUserJoined(int uid, int elapsed) {
-            runOnUiThread(() -> agora.showRemoteVideo(videoContainer, uid));
+            Log.d(TAG, "👤 Remote user joined: " + uid);
+            runOnUiThread(() -> {
+                if (agora != null && videoContainer != null) {
+                    agora.showRemoteVideo(videoContainer, uid);
+                    Log.d(TAG, "Showing remote video in container");
+                }
+            });
         }
 
         @Override
         public void onUserOffline(int uid, int reason) {
-            runOnUiThread(() -> videoContainer.removeAllViews());
+            Log.d(TAG, "👤 Remote user offline: " + uid);
+            runOnUiThread(() -> {
+                if (videoContainer != null) {
+                    videoContainer.removeAllViews();
+                }
+            });
         }
     };
 
     @Override
     protected void onDestroy() {
-        Log.d(TAG, "Cleaning up resources");
+        Log.d(TAG, "Cleanup");
 
         if (backgroundExecutor != null && !backgroundExecutor.isShutdown()) {
             backgroundExecutor.execute(() -> {
                 try {
-                    if (aiHelper != null) aiHelper.stopDetection();
+                    if (aiHelper != null && aiEnabled) {
+                        aiHelper.stopDetection();
+                    }
 
                     if (agora != null) {
-                        Log.d(TAG, "Agora leave() called");
                         agora.leave();
                         Thread.sleep(300);
                         agora.destroy();
-                        Log.d(TAG, "Agora destroyed safely");
                     }
 
-                    if (mqtt != null) mqtt.disconnect();
+                    if (mqtt != null) {
+                        String statusTopic = "robot/" + robotID + "/status";
+                        mqtt.publish(statusTopic, "offline");
+                        mqtt.disconnect();
+                    }
 
                 } catch (Exception e) {
-                    Log.e(TAG, "Error during cleanup: " + e.getMessage());
+                    Log.e(TAG, "Cleanup error: " + e.getMessage());
                 } finally {
                     backgroundExecutor.shutdown();
                 }
             });
-        } else if (mqtt != null) {
-            mqtt.disconnect();
         }
 
         super.onDestroy();
