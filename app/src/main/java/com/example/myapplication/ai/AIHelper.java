@@ -180,7 +180,6 @@ public class AIHelper {
             return;
         }
 
-        // Person found
         noPersonFrameCount = 0;
 
         int centerX = largestPerson.getBoundingBox().centerX();
@@ -189,7 +188,6 @@ public class AIHelper {
 
         double areaRatio = (double) largestPersonArea / (imageWidth * imageHeight);
 
-        // NOTE: Front camera is MIRRORED, so directions are reversed
         String cmd;
         if (centerX < frameCenter - tolerance) {
             cmd = "RIGHT";
@@ -271,7 +269,7 @@ public class AIHelper {
             if (cameraProvider != null) {
                 cameraProvider.unbindAll();
                 cameraProvider = null;
-                Log.d(TAG, "📹 AI camera unbound");
+                Log.d(TAG, "AI camera unbound");
             }
 
             if (detector != null) {
