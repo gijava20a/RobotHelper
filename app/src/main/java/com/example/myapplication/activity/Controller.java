@@ -98,7 +98,7 @@ public class Controller extends AppCompatActivity {
         });
 
         setupKeyBehavior(R.id.btn_up, "FORWARD");
-        setupKeyBehavior(R.id.btn_down, "BACK");
+        setupKeyBehavior(R.id.btn_down, "BACKWARD");
         setupKeyBehavior(R.id.btn_left, "LEFT");
         setupKeyBehavior(R.id.btn_right, "RIGHT");
 
